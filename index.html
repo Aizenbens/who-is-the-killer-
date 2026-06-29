@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>صراع الغسق - أونلاين</title>
-    <!-- مكتبة Socket.io للربط بين الهواتف -->
     <script src="/socket.io/socket.io.js"></script>
     <style>
         body { background-color: #0b0c10; color: #c5c6c7; font-family: sans-serif; text-align: center; padding: 20px; margin: 0; }
@@ -18,6 +17,8 @@
         .players-list { list-style: none; padding: 0; margin: 20px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
         .players-list li { background: #0b0c10; padding: 8px 15px; border-radius: 20px; border: 1px solid #66fcf1; }
         .role-display { font-size: 28px; color: #66fcf1; font-weight: bold; margin: 30px 0; }
+        .timer-box { font-size: 48px; font-weight: bold; color: #ff0055; margin: 20px 0; }
+        .vote-select { padding: 10px; background: #0b0c10; color: white; border: 1px solid #45a29e; border-radius: 5px; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -25,7 +26,7 @@
     <div class="container">
         <h1>🐺 صراع الغسق أونلاين</h1>
 
-        <!-- شاشة تسجيل الدخول -->
+        <!-- الشاشة 1 -->
         <div id="login-screen" class="screen active-screen">
             <h2>انضم إلى اللعبة أونلاين</h2>
             <input type="text" id="player-name" placeholder="أدخل اسمك المستعار...">
@@ -33,77 +34,124 @@
             <button class="btn" onclick="joinGame()">دخول الغرفة ➔</button>
         </div>
 
-        <!-- شاشة غرفة الانتظار المتزامنة -->
+        <!-- الشاشة 2 -->
         <div id="lobby-screen" class="screen">
             <h2>غرفة الانتظار الرقمية</h2>
-            <p>بانتظار بقية اللاعبين (تحتاج 4 لاعبين كحد أدنى)...</p>
-            <h3>اللاعبون المتصلون الآن في نفس اللحظة:</h3>
             <ul id="online-players-list" class="players-list"></ul>
-            <button id="start-btn" class="btn" style="display:none;" onclick="requestStartGame()">بدء اللعبة وتوزيع الأدوار ➔</button>
+            <button id="start-btn" class="btn" style="display:none;" onclick="requestStartGame()">توزيع الأدوار وبدء الليلة ➔</button>
         </div>
 
-        <!-- شاشة عرض الدور السري لكل هاتف -->
+        <!-- الشاشة 3 -->
         <div id="role-screen" class="screen">
             <h2>دورك السري لهذه الليلة 🌌</h2>
             <div id="my-role" class="role-display">جاري التحميل...</div>
-            <p>لا تدع أحداً ينظر إلى شاشة هاتفك!</p>
+            <button class="btn" id="next-to-disc" style="display:none;" onclick="requestDiscussion()">الانتقال للمناقشة النهارية ☀️</button>
+        </div>
+
+        <!-- الشاشة 4 -->
+        <div id="discussion-screen" class="screen">
+            <h2>المناقشة والدفاع 🗣️</h2>
+            <div id="timer" class="timer-box">01:00</div>
+            <button class="btn" id="next-to-vote" style="display:none;" onclick="requestVoting()">الانتقال للتصويت فوراً 🗳️</button>
+        </div>
+
+        <!-- الشاشة 5 -->
+        <div id="voting-screen" class="screen">
+            <h2>محكمة القرية 🗳️</h2>
+            <p>اختر من تشك به سراً:</p>
+            <select id="my-vote-select" class="vote-select"></select>
+            <br><br>
+            <button class="btn" onclick="submitMyVote()">تأكيد صوتي 🔒</button>
+        </div>
+
+        <!-- الشاشة 6 -->
+        <div id="result-screen" class="screen">
+            <h2>النتيجة النهائية 💀</h2>
+            <div id="final-result-box" style="font-size: 22px; margin: 30px 0; color:#ff0055; font-weight:bold;"></div>
+            <button class="btn" onclick="location.reload()">جولة جديدة 🔄</button>
         </div>
     </div>
 
     <script>
         const socket = io();
         let myName = "";
+        let allPlayers = [];
+        let timerInterval;
 
         function joinGame() {
             const nameInput = document.getElementById('player-name');
             myName = nameInput.value.trim();
             if (myName === '') return;
-
-            // إرسال الاسم للسيرفر أونلاين
             socket.emit('joinRoom', { name: myName });
             switchScreen('login-screen', 'lobby-screen');
         }
 
-        // استقبال قائمة اللاعبين المتصلين وتحديث الشاشات تلقائياً
         socket.on('updatePlayers', (players) => {
+            allPlayers = players;
             const listUl = document.getElementById('online-players-list');
-            if (listUl) {
-                listUl.innerHTML = '';
-                players.forEach(p => {
-                    const li = document.createElement('li');
-                    li.innerText = '👤 ' + p.name;
-                    listUl.appendChild(li);
-                });
-            }
-
-            // إظهار زر البدء فقط للمشرف أو عند اكتمال العدد
-            const startBtn = document.getElementById('start-btn');
-            if (startBtn) {
-                if (players.length >= 4) {
-                    startBtn.style.display = 'inline-block';
-                } else {
-                    startBtn.style.display = 'none';
-                }
+            listUl.innerHTML = '';
+            players.forEach(p => {
+                const li = document.createElement('li');
+                li.innerText = '👤 ' + p.name;
+                listUl.appendChild(li);
+            });
+            // أول لاعب دخل هو الآدمن ويظهر له زر الانتقال
+            if (players[0] && players[0].id === socket.id) {
+                if(players.length >= 4) document.getElementById('start-btn').style.display = 'inline-block';
+                document.getElementById('next-to-disc').style.display = 'inline-block';
+                document.getElementById('next-to-vote').style.display = 'inline-block';
             }
         });
 
-        function requestStartGame() {
-            socket.emit('startGame');
+        function requestStartGame() { socket.emit('startGame'); }
+        function requestDiscussion() { socket.emit('startDiscussion'); }
+        function requestVoting() { socket.emit('startVoting'); }
+
+        socket.on('gameStarted', () => { switchScreen('lobby-screen', 'role-screen'); });
+        socket.on('yourRole', (role) => { document.getElementById('my-role').innerText = role; });
+
+        socket.on('discussionStarted', () => {
+            switchScreen('role-screen', 'discussion-screen');
+            let timeLeft = 60;
+            timerInterval = setInterval(() => {
+                let sec = timeLeft % 60;
+                document.getElementById('timer').innerText = `00:${sec < 10 ? '0'+sec : sec}`;
+                if (--timeLeft < 0) { clearInterval(timerInterval); requestVoting(); }
+            }, 1000);
+        });
+
+        socket.on('votingStarted', () => {
+            clearInterval(timerInterval);
+            switchScreen('discussion-screen', 'voting-screen');
+            const select = document.getElementById('my-vote-select');
+            select.innerHTML = '<option value="skip">امتناع عن التصويت</option>';
+            allPlayers.forEach(p => {
+                if(p.name !== myName) select.innerHTML += `<option value="${p.name}">${p.name}</option>`;
+            });
+        });
+
+        function submitMyVote() {
+            const target = document.getElementById('my-vote-select').value;
+            socket.emit('submitVote', { target });
+            document.getElementById('voting-screen').innerHTML = "<h3>تم إرسال صوتك سراً.. بانتظار بقية اللاعبين ⏳</h3>";
         }
 
-        // الانتقال المتزامن لجميع الهواتف عند بدء اللعبة
-        socket.on('gameStarted', () => {
-            switchScreen('lobby-screen', 'role-screen');
-        });
-
-        // استقبال الدور المخصص لهذا الهاتف
-        socket.on('yourRole', (role) => {
-            document.getElementById('my-role').innerText = role;
+        socket.on('gameResult', ({ eliminated, isTie, roles }) => {
+            switchScreen('voting-screen', 'result-screen');
+            const box = document.getElementById('final-result-box');
+            if (isTie || !eliminated) {
+                box.innerHTML = `⚖️ تعادلت الأصوات ولم يُطرد أحد هذه الجولة!`;
+            } else {
+                let targetPlayer = allPlayers.find(p => p.name === eliminated);
+                let role = targetPlayer ? roles[targetPlayer.id] : "غير معروف";
+                box.innerHTML = `💀 تم طرد اللاعب: [ ${eliminated} ]<br><br>ودوره الحقيقي كان: <span style="color:#66fcf1">${role}</span>`;
+            }
         });
 
         function switchScreen(oldId, newId) {
-            document.getElementById(oldId).classList.remove('active-screen');
-            document.getElementById(newId).classList.add('active-screen');
+            let oldS = document.getElementById(oldId);
+            let newS = document.getElementById(newId);
+            if(oldS && newS) { oldS.classList.remove('active-screen'); newS.classList.add('active-screen'); }
         }
     </script>
 </body>
