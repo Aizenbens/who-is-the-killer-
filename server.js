@@ -10,9 +10,8 @@ io.on('connection', (socket) => {
     socket.on('joinRoom', (data) => {
         let roomId = "main-room"; 
         socket.join(roomId);
-        if (!rooms[roomId]) rooms[roomId] = { players: [], roles: {}, alive: {}, votes: {}, nightActions: { target: null, protect: null }, phase: "lobby" };
+        if (!rooms[roomId]) rooms[roomId] = { players: [], roles: {}, alive: {}, votes: {}, nightActions: { target: null, protect: null }, phase: "lobby", currentSpeakerIndex: 0 };
         
-        // منع التكرار
         if (!rooms[roomId].players.find(p => p.id === socket.id)) {
             rooms[roomId].players.push({ id: socket.id, name: data.name });
         }
@@ -21,10 +20,12 @@ io.on('connection', (socket) => {
 
     socket.on('sendMessage', (msg) => {
         let room = rooms["main-room"];
-        if(!room) return;
-        let player = room.players.find(p => p.id === socket.id);
-        if(player) {
-            io.to("main-room").emit('receiveMessage', { name: player.name, text: msg });
+        if(!room || room.phase !== "discussion") return;
+        
+        // التحقق من أن هذا اللاعب هو من يملك حق الكلام حالياً
+        let currentSpeaker = room.players.filter(p => room.alive[p.id])[room.currentSpeakerIndex];
+        if (currentSpeaker && currentSpeaker.id === socket.id) {
+            io.to("main-room").emit('receiveMessage', { name: currentSpeaker.name, text: msg });
         }
     });
 
@@ -37,11 +38,8 @@ io.on('connection', (socket) => {
         room.nightActions = { target: null, protect: null };
         room.phase = "night";
 
-        // توزيع الأدوار تلقائياً بناءً على العدد لضمان وجود ساحرة وذئاب
         let count = room.players.length;
         let rolesPool = ["🧪 ساحرة معالجة"];
-        
-        // تحديد عدد الذئاب بناءً على حجم الغرفة
         let wolvesCount = count >= 7 ? 2 : 1; 
         for(let i=0; i<wolvesCount; i++) rolesPool.push("🐺 ذئب خفي");
         while(rolesPool.length < count) rolesPool.push("🧑‍🌾 مواطن بريء");
@@ -50,15 +48,14 @@ io.on('connection', (socket) => {
 
         room.players.forEach((player, idx) => {
             room.roles[player.id] = rolesPool[idx];
-            room.alive[player.id] = true; // الجميع أحياء في البداية
+            room.alive[player.id] = true;
             io.to(player.id).emit('yourRole', { role: rolesPool[idx], id: player.id });
         });
 
-        io.to(roomId).emit('gameStarted', { roles: room.roles });
+        io.to(roomId).emit('gameStarted');
         startNightPhase(room);
     });
 
-    // استقبال أوامر القتل من الذئاب
     socket.on('wolfAttack', ({ targetId }) => {
         let room = rooms["main-room"];
         if(!room || room.phase !== "night") return;
@@ -66,7 +63,6 @@ io.on('connection', (socket) => {
         checkNightEnded(room);
     });
 
-    // استقبال أوامر الحماية من الساحرة
     socket.on('witchProtect', ({ targetId }) => {
         let room = rooms["main-room"];
         if(!room || room.phase !== "night") return;
@@ -74,12 +70,21 @@ io.on('connection', (socket) => {
         checkNightEnded(room);
     });
 
+    // القائد يطلب الانتقال للاعب التالي في حال أنهى كلامه مبكراً
+    socket.on('nextSpeakerRequest', () => {
+        let room = rooms["main-room"];
+        if(!room || room.phase !== "discussion") return;
+        let leader = room.players[0];
+        if(socket.id === leader.id) {
+            nextSpeaker(room);
+        }
+    });
+
     socket.on('submitVote', ({ targetId }) => {
         let room = rooms["main-room"];
         if (!room || room.phase !== "voting") return;
         room.votes[socket.id] = targetId;
         
-        // حساب اللاعبين الأحياء لمعرفة متى ينتهي التصويت
         let aliveCount = room.players.filter(p => room.alive[p.id]).length;
         if (Object.keys(room.votes).length === aliveCount) {
             calculateVotingResult(room);
@@ -97,22 +102,18 @@ io.on('connection', (socket) => {
 function startNightPhase(room) {
     room.phase = "night";
     room.votes = {};
-    // إرسال قائمة الأحياء للاختيار منها ليلاً
     let alivePlayers = room.players.filter(p => room.alive[p.id]);
     io.to("main-room").emit('nightStarted', { alivePlayers });
 }
 
 function checkNightEnded(room) {
     let hasWitch = Object.values(room.roles).includes("🧪 ساحرة معالجة") && room.players.some(p => room.roles[p.id] === "🧪 ساحرة معالجة" && room.alive[p.id]);
-    
-    // ينتهي الليل إذا اختار الذئب واختارت الساحرة (أو إذا كانت الساحرة ميتة)
     if (room.nightActions.target && (!hasWitch || room.nightActions.protect)) {
         endNight(room);
     }
 }
 
 function endNight(room) {
-    room.phase = "discussion";
     let killedName = "لم يمت أحد في هذه الليلة! 🎉";
     let killedId = null;
 
@@ -125,15 +126,38 @@ function endNight(room) {
 
     room.nightActions = { target: null, protect: null };
     
-    io.to("main-room").emit('dayStarted', { killedMessage: killedName, alivePlayers: room.players.filter(p => room.alive[p.id]) });
+    if (checkGameEnd(room)) return;
+
+    room.phase = "discussion";
+    room.currentSpeakerIndex = 0; // بدء الدور من أول لاعب حي
+
+    let alivePlayers = room.players.filter(p => room.alive[p.id]);
+    io.to("main-room").emit('dayStarted', { killedMessage: killedName, alivePlayers });
     
-    if (!checkGameEnd(room)) {
-        // مؤقت المناقشة النهارية 45 ثانية ثم الانتقال للتصويت
-        setTimeout(() => {
-            room.phase = "voting";
-            io.to("main-room").emit('votingStarted');
-        }, 45000);
+    // تشغيل أول دور للكلام
+    sendSpeakerTurn(room);
+}
+
+function sendSpeakerTurn(room) {
+    let alivePlayers = room.players.filter(p => room.alive[p.id]);
+    
+    if (room.currentSpeakerIndex >= alivePlayers.length) {
+        // انتهى دور الجميع، ننتقل للتصويت
+        room.phase = "voting";
+        io.to("main-room").emit('votingStarted');
+        return;
     }
+
+    let currentSpeaker = alivePlayers[room.currentSpeakerIndex];
+    io.to("main-room").emit('speakerTurn', { 
+        speakerName: currentSpeaker.name, 
+        speakerId: currentSpeaker.id 
+    });
+}
+
+function nextSpeaker(room) {
+    room.currentSpeakerIndex++;
+    sendSpeakerTurn(room);
 }
 
 function calculateVotingResult(room) {
@@ -171,7 +195,6 @@ function checkGameEnd(room) {
         }
     });
 
-    // شروط الفوز الدقيقة التي طلبتها
     if (wolves === 0) {
         io.to("main-room").emit('gameOver', { winner: "🎉 الأبرياء والساحرة! تم القضاء على جميع الذئاب." });
         return true;
@@ -184,4 +207,4 @@ function checkGameEnd(room) {
 }
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log(`Server connected on port ${PORT}`));
+http.listen(PORT, () => console.log(`Server running on port ${PORT}`));
