@@ -44,7 +44,7 @@
 
         <!-- شاشة عرض الدور السري لكل هاتف -->
         <div id="role-screen" class="screen">
-            <h2>دورك السري ل هذه الليلة 🌌</h2>
+            <h2>دورك السري لهذه الليلة 🌌</h2>
             <div id="my-role" class="role-display">جاري التحميل...</div>
             <p>لا تدع أحداً ينظر إلى شاشة هاتفك!</p>
         </div>
@@ -64,21 +64,26 @@
             switchScreen('login-screen', 'lobby-screen');
         }
 
-        // استقبال قائمة اللاعبين المتصلين في نفس اللحظة من السيرفر تحديثها تلقائياً
+        // استقبال قائمة اللاعبين المتصلين وتحديث الشاشات تلقائياً
         socket.on('updatePlayers', (players) => {
             const listUl = document.getElementById('online-players-list');
-            listUl.innerHTML = '';
-            players.forEach(p => {
-                const li = document.createElement('li');
-                li.innerText = '👤 ' + p.name;
-                listUl.appendChild(li);
-            });
+            if (listUl) {
+                listUl.innerHTML = '';
+                players.forEach(p => {
+                    const li = document.createElement('li');
+                    li.innerText = '👤 ' + p.name;
+                    listUl.appendChild(li);
+                });
+            }
 
-            // إظهار زر البدء فقط إذا كان عدد المشتركين 4 أو أكثر
-            if (players.length >= 4) {
-                document.getElementById('start-btn').style.display = 'inline-block';
-            } else {
-                document.getElementById('start-btn').style.display = 'none';
+            // إظهار زر البدء فقط للمشرف أو عند اكتمال العدد
+            const startBtn = document.getElementById('start-btn');
+            if (startBtn) {
+                if (players.length >= 4) {
+                    startBtn.style.display = 'inline-block';
+                } else {
+                    startBtn.style.display = 'none';
+                }
             }
         });
 
@@ -86,10 +91,14 @@
             socket.emit('startGame');
         }
 
-        // استقبال الدور السري المخصص لهذا الهاتف فقط
+        // الانتقال المتزامن لجميع الهواتف عند بدء اللعبة
+        socket.on('gameStarted', () => {
+            switchScreen('lobby-screen', 'role-screen');
+        });
+
+        // استقبال الدور المخصص لهذا الهاتف
         socket.on('yourRole', (role) => {
             document.getElementById('my-role').innerText = role;
-            switchScreen('lobby-screen', 'role-screen');
         });
 
         function switchScreen(oldId, newId) {
