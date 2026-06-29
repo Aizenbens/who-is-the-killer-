@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>صراع الغسق - نسخة عداد الأدوار</title>
+    <title>صراع الغسق - أونلاين</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         body { background-color: #0b0c10; color: #c5c6c7; font-family: sans-serif; text-align: center; padding: 15px; margin: 0; }
@@ -18,7 +18,6 @@
         .players-list li { background: #0b0c10; padding: 8px 15px; border-radius: 20px; border: 1px solid #66fcf1; }
         .role-title { font-size: 26px; color: #66fcf1; font-weight: bold; margin: 15px 0; }
         .action-box { background: #0b0c10; padding: 15px; border-radius: 10px; border: 2px dashed #ff0055; margin: 15px 0; }
-        
         .chat-box { background: #0b0c10; border: 1px solid #45a29e; border-radius: 8px; height: 150px; overflow-y: auto; text-align: right; padding: 10px; margin: 15px 0; font-size: 14px; }
         .chat-input-area { display: flex; gap: 5px; }
         .chat-input { flex: 1; padding: 10px; background: #1f2833; color: white; border: 1px solid #45a29e; border-radius: 5px; }
@@ -30,7 +29,7 @@
     <div class="container">
         <h1>🐺 صراع الغسق</h1>
 
-        <!-- شاشة 1 -->
+        <!-- شاشة 1: الدخول -->
         <div id="login-screen" class="screen active-screen">
             <h2>انضم للعب أونلاين</h2>
             <input type="text" id="player-name" placeholder="أدخل اسمك المستعار...">
@@ -38,7 +37,7 @@
             <button class="btn" onclick="joinGame()">دخول ➔</button>
         </div>
 
-        <!-- شاشة 2 -->
+        <!-- شاشة 2: الانتظار -->
         <div id="lobby-screen" class="screen">
             <h2>غرفة الانتظار المتزامنة</h2>
             <p id="waiting-msg">بانتظار المشرف لبدء اللعبة (4 لاعبين كحد أدنى)...</p>
@@ -46,19 +45,18 @@
             <button id="start-btn" class="btn" style="display:none;" onclick="requestStartGame()">بدء اللعبة ➔</button>
         </div>
 
-        <!-- شاشة 3 -->
+        <!-- شاشة 3: الليل -->
         <div id="night-screen" class="screen">
             <h2 style="color: #ff0055;">💤 حل الظلام الحالك...</h2>
             <div id="my-role-badge" class="role-title">جاري تحديد دورك...</div>
             <div id="night-action-area" class="action-box">بانتظار تنفيذ الأدوار سراً...</div>
         </div>
 
-        <!-- شاشة 4 -->
+        <!-- شاشة 4: المناقشة -->
         <div id="discussion-screen" class="screen">
             <h2>☀️ دور الدفاع والكلام المنفصل</h2>
             <h3 id="night-kill-report" style="color: #ff0055;"></h3>
             
-            <!-- لوحة إعلان المتحدث الحالي -->
             <div id="speaker-announcement" class="speaker-badge">جاري تحديد من يتكلم...</div>
             <div id="speaker-timer" style="font-size: 24px; color: #66fcf1; margin-bottom: 10px;">الوقت المتبقي: 60 ثانية</div>
 
@@ -72,21 +70,21 @@
             <button id="leader-next-btn" class="btn" style="background-color: #00ffcc; color: black; display: none; margin-top: 15px;" onclick="skipToNextSpeaker()">تجاوز اللاعب الحالي (للمشرف فقط) ➔</button>
         </div>
 
-        <!-- شاشة 5 -->
+        <!-- شاشة 5: التصويت -->
         <div id="voting-screen" class="screen">
             <h2>🗳️ محكمة القرية الحية</h2>
             <p>انتهى وقت الكلام للجميع. اختر من تشتبه به الآن:</p>
             <div id="voting-options-area"></div>
         </div>
 
-        <!-- شاشة 6 -->
+        <!-- شاشة 6: النتيجة -->
         <div id="result-screen" class="screen">
             <h2>🔍 حكم المحكمة النهائي</h2>
             <div id="vote-result-box" style="font-size: 20px; color:#ff0055; margin: 20px 0; font-weight:bold;"></div>
             <p style="color:#aaa;">جاري الانتقال لليلة التالية وتجهيز الأدوار السحرية...</p>
         </div>
 
-        <!-- شاشة 7 -->
+        <!-- شاشة 7: نهاية اللعبة -->
         <div id="gameover-screen" class="screen">
             <h2 style="color: #00ffcc;">🏆 انتهاء المعركة!</h2>
             <div id="winner-box" style="font-size: 26px; margin: 30px 0; font-weight:bold;"></div>
@@ -119,7 +117,7 @@
                 listUl.appendChild(li);
             });
             
-            // إصلاح التحقق من القائد ليعتمد على أول لاعب في القائمة بشكل صحيح
+            // تصحيح التحقق من القائد ليعتمد على أول لاعب في المصفوفة البرمجية بشكل آمن
             if (players.length > 0 && players[0].name === myName) {
                 isLeader = true;
                 if(players.length >= 4) {
@@ -186,85 +184,84 @@
         socket.on('speakerTurn', ({ speakerName, speakerId }) => {
             const badge = document.getElementById('speaker-announcement');
             const input = document.getElementById('msg-field');
-            const btn = document.getElementById('send-chat-btn');
-            
-            clearInterval(speakerCountdown);        if (speakerId === myId) {
-            badge.innerText = `🎤 دورك الآن! تكلّم ودافع عن نفسك.`;
-            badge.style.backgroundColor = "#00ffcc";
-            badge.style.color = "black";
-            input.disabled = false;
-            btn.disabled = false;
-            input.placeholder = "اكتب دفاعك أو اتهامك هنا، الميكروفون معك...";
-        } else {
-            badge.innerText = `🗣️ المتحدث الحالي: [ ${speakerName} ]`;
-            badge.style.backgroundColor = "#ff0055";
-            badge.style.color = "white";
-            input.disabled = true;
-            btn.disabled = true;
-            input.placeholder = "استمع جيداً وكذّبه بذكاء.. الشات مقفل عنك الآن.";
-        }
+            const btn = document.getElementById('send-chat-btn');    clearInterval(speakerCountdown);
+    
+    if (speakerId === myId) {
+        badge.innerText = `🎤 دورك الآن! تكلّم ودافع عن نفسك.`;
+        badge.style.backgroundColor = "#00ffcc";
+        badge.style.color = "black";
+        input.disabled = false;
+        btn.disabled = false;
+        input.placeholder = "اكتب دفاعك أو اتهامك هنا، الميكروفون معك...";
+    } else {
+        badge.innerText = `🗣️ المتحدث الحالي: [ ${speakerName} ]`;
+        badge.style.backgroundColor = "#ff0055";
+        badge.style.color = "white";
+        input.disabled = true;
+        btn.disabled = true;
+        input.placeholder = "استمع جيداً وكذّبه بذكاء.. الشات مقفل عنك الآن.";
+    }
 
-        let timeLeft = 60;
+    let timeLeft = 60;
+    document.getElementById('speaker-timer').innerText = `الوقت المتبقي: ${timeLeft} ثانية`;
+    
+    speakerCountdown = setInterval(() => {
+        timeLeft--;
         document.getElementById('speaker-timer').innerText = `الوقت المتبقي: ${timeLeft} ثانية`;
-        
-        clearInterval(speakerCountdown);
-        speakerCountdown = setInterval(() => {
-            timeLeft--;
-            document.getElementById('speaker-timer').innerText = `الوقت المتبقي: ${timeLeft} ثانية`;
-            if(timeLeft <= 0) {
-                clearInterval(speakerCountdown);
-            }
-        }, 1000);
-    });
-
-    function skipToNextSpeaker() {
-        socket.emit('nextSpeakerRequest');
-    }
-
-    function sendChat() {
-        const input = document.getElementById('msg-field');
-        if(input.value.trim() !== '') {
-            socket.emit('sendMessage', input.value.trim());
-            input.value = '';
+        if (timeLeft <= 0) {
+            clearInterval(speakerCountdown);
         }
+    }, 1000);
+});
+
+function skipToNextSpeaker() { 
+    socket.emit('nextSpeakerRequest'); 
+}
+
+function sendChat() {
+    const input = document.getElementById('msg-field');
+    if (input.value.trim() !== '') {
+        socket.emit('sendMessage', input.value.trim());
+        input.value = '';
     }
+}
 
-    socket.on('receiveMessage', (data) => {
-        const box = document.getElementById('chat-messages');
-        box.innerHTML += `<div><b>${data.name}:</b> ${data.text}</div>`;
-        box.scrollTop = box.scrollHeight;
-    });
+socket.on('receiveMessage', (data) => {
+    const box = document.getElementById('chat-messages');
+    box.innerHTML += `<div><b>${data.name}:</b> ${data.text}</div>`;
+    box.scrollTop = box.scrollHeight;
+});
 
-    socket.on('votingStarted', () => { 
-        clearInterval(speakerCountdown);
-        switchScreen('discussion-screen', 'voting-screen'); 
-    });
+socket.on('votingStarted', () => {
+    clearInterval(speakerCountdown);
+    switchScreen('discussion-screen', 'voting-screen');
+});
 
-    function submitVote(targetId) {
-        socket.emit('submitVote', { targetId });
-        document.getElementById('voting-options-area').innerHTML = "<h3>تم تسجيل صوتك السري بنجاح.. بانتظار فرز المحكمة ⏳</h3>";
+function submitVote(targetId) {
+    socket.emit('submitVote', { targetId });
+    document.getElementById('voting-options-area').innerHTML = "<h3>تم تسجيل صوتك السري بنجاح.. بانتظار فرز المحكمة ⏳</h3>";
+}
+
+socket.on('votingResult', ({ resultMsg }) => {
+    switchScreen('voting-screen', 'result-screen');
+    document.getElementById('vote-result-box').innerHTML = resultMsg;
+});
+
+socket.on('gameOver', ({ winner }) => {
+    clearInterval(speakerCountdown);
+    switchScreen('discussion-screen', 'gameover-screen');
+    switchScreen('voting-screen', 'gameover-screen');
+    switchScreen('result-screen', 'gameover-screen');
+    document.getElementById('winner-box').innerText = winner;
+});
+
+function switchScreen(oldId, newId) {
+    let oldS = document.getElementById(oldId);
+    let newS = document.getElementById(newId);
+    if (oldS && newS) { 
+        oldS.classList.remove('active-screen'); 
+        newS.classList.add('active-screen'); 
     }
+}
 
-    socket.on('votingResult', ({ resultMsg }) => {
-        switchScreen('voting-screen', 'result-screen');
-        document.getElementById('vote-result-box').innerHTML = resultMsg;
-    });
-
-    socket.on('gameOver', ({ winner }) => {
-        clearInterval(speakerCountdown);
-        switchScreen('discussion-screen', 'gameover-screen');
-        switchScreen('voting-screen', 'gameover-screen');
-        switchScreen('result-screen', 'gameover-screen');
-        document.getElementById('winner-box').innerText = winner;
-    });
-
-    function switchScreen(oldId, newId) {
-        let oldS = document.getElementById(oldId);
-        let newS = document.getElementById(newId);
-        if(oldS && newS) { 
-            oldS.classList.remove('active-screen'); 
-            newS.classList.add('active-screen'); 
-        }
-    }
-
-
+            
