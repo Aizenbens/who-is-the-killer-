@@ -18,7 +18,7 @@
         .players-list li { background: #0b0c10; padding: 8px 15px; border-radius: 20px; border: 1px solid #66fcf1; }
         .role-display { font-size: 28px; color: #66fcf1; font-weight: bold; margin: 30px 0; }
         .timer-box { font-size: 48px; font-weight: bold; color: #ff0055; margin: 20px 0; }
-        .vote-select { padding: 10px; background: #0b0c10; color: white; border: 1px solid #45a29e; border-radius: 5px; font-size: 16px; }
+        .vote-select { padding: 10px; background: #0b0c10; color: white; border: 1px solid #45a29e; border-radius: 5px; font-size: 16px; width: 80%; text-align: center; }
     </style>
 </head>
 <body>
@@ -26,7 +26,7 @@
     <div class="container">
         <h1>🐺 صراع الغسق أونلاين</h1>
 
-        <!-- الشاشة 1 -->
+        <!-- شاشة 1 -->
         <div id="login-screen" class="screen active-screen">
             <h2>انضم إلى اللعبة أونلاين</h2>
             <input type="text" id="player-name" placeholder="أدخل اسمك المستعار...">
@@ -34,40 +34,44 @@
             <button class="btn" onclick="joinGame()">دخول الغرفة ➔</button>
         </div>
 
-        <!-- الشاشة 2 -->
+        <!-- شاشة 2 -->
         <div id="lobby-screen" class="screen">
             <h2>غرفة الانتظار الرقمية</h2>
+            <p id="waiting-msg">بانتظار بقية اللاعبين (4 لاعبين كحد أدنى)...</p>
+            <h3>اللاعبون المتصلون:</h3>
             <ul id="online-players-list" class="players-list"></ul>
-            <button id="start-btn" class="btn" style="display:none;" onclick="requestStartGame()">توزيع الأدوار وبدء الليلة ➔</button>
+            <button id="start-btn" class="btn" style="display:none;" onclick="requestStartGame()">توزيع الأدوار وبدء اللعبة ➔</button>
         </div>
 
-        <!-- الشاشة 3 -->
+        <!-- شاشة 3 -->
         <div id="role-screen" class="screen">
             <h2>دورك السري لهذه الليلة 🌌</h2>
             <div id="my-role" class="role-display">جاري التحميل...</div>
-            <button class="btn" id="next-to-disc" style="display:none;" onclick="requestDiscussion()">الانتقال للمناقشة النهارية ☀️</button>
+            <p style="color: #ff0055; font-weight: bold;" id="role-timer">ستبدأ المناقشة تلقائياً بعد 15 ثانية...</p>
         </div>
 
-        <!-- الشاشة 4 -->
+        <!-- شاشة 4 -->
         <div id="discussion-screen" class="screen">
-            <h2>المناقشة والدفاع 🗣️</h2>
+            <h2>المناقشة النهارية 🗣️</h2>
+            <p>تناقشوا واكشفوا الخونة قبل انتهاء الوقت!</p>
             <div id="timer" class="timer-box">01:00</div>
-            <button class="btn" id="next-to-vote" style="display:none;" onclick="requestVoting()">الانتقال للتصويت فوراً 🗳️</button>
         </div>
 
-        <!-- الشاشة 5 -->
+        <!-- شاشة 5 -->
         <div id="voting-screen" class="screen">
-            <h2>محكمة القرية 🗳️</h2>
-            <p>اختر من تشك به سراً:</p>
-            <select id="my-vote-select" class="vote-select"></select>
-            <br><br>
-            <button class="btn" onclick="submitMyVote()">تأكيد صوتي 🔒</button>
+            <h2>محكمة القرية السحرية 🗳️</h2>
+            <p>اختر الشخص المشتبه به سراً:</p>
+            <div id="vote-form-area">
+                <select id="my-vote-select" class="vote-select"></select>
+                <br><br>
+                <button class="btn" onclick="submitMyVote()">تأكيد صوتي 🔒</button>
+            </div>
         </div>
 
-        <!-- الشاشة 6 -->
+        <!-- شاشة 6 -->
         <div id="result-screen" class="screen">
-            <h2>النتيجة النهائية 💀</h2>
-            <div id="final-result-box" style="font-size: 22px; margin: 30px 0; color:#ff0055; font-weight:bold;"></div>
+            <h2>نتيجة المحاكمة القاتلة 💀</h2>
+            <div id="final-result-box" style="font-size: 22px; margin: 30px 0; color:#ff0055; font-weight:bold; line-height: 1.6;"></div>
             <button class="btn" onclick="location.reload()">جولة جديدة 🔄</button>
         </div>
     </div>
@@ -77,6 +81,7 @@
         let myName = "";
         let allPlayers = [];
         let timerInterval;
+        let isLeader = false;
 
         function joinGame() {
             const nameInput = document.getElementById('player-name');
@@ -95,28 +100,54 @@
                 li.innerText = '👤 ' + p.name;
                 listUl.appendChild(li);
             });
-            // أول لاعب دخل هو الآدمن ويظهر له زر الانتقال
-            if (players[0] && players[0].id === socket.id) {
-                if(players.length >= 4) document.getElementById('start-btn').style.display = 'inline-block';
-                document.getElementById('next-to-disc').style.display = 'inline-block';
-                document.getElementById('next-to-vote').style.display = 'inline-block';
+            
+            // تحديد القائد بناءً على أول معرف لاعب متصل في القائمة المحدثة
+            if (players.length > 0 && players[0].name === myName) {
+                isLeader = true;
+                if(players.length >= 4) {
+                    document.getElementById('start-btn').style.display = 'inline-block';
+                    document.getElementById('waiting-msg').innerText = "أنت القائد! اضغط على الزر لبدء اللعبة الآن.";
+                }
+            } else {
+                isLeader = false;
+                document.getElementById('start-btn').style.display = 'none';
+                document.getElementById('waiting-msg').innerText = "بانتظار أن يبدأ القائد اللعبة...";
             }
         });
 
         function requestStartGame() { socket.emit('startGame'); }
-        function requestDiscussion() { socket.emit('startDiscussion'); }
-        function requestVoting() { socket.emit('startVoting'); }
 
-        socket.on('gameStarted', () => { switchScreen('lobby-screen', 'role-screen'); });
+        socket.on('gameStarted', () => { 
+            switchScreen('lobby-screen', 'role-screen'); 
+            let rTime = 15;
+            let rInterval = setInterval(() => {
+                rTime--;
+                document.getElementById('role-timer').innerText = `ستبدأ المناقشة تلقائياً بعد ${rTime} ثانية...`;
+                if(rTime <= 0) {
+                    clearInterval(rInterval);
+                    // القائد فقط يرسل إشارة انتهاء وقت قراءة الأدوار للسيرفر ليقوم بنقل الجميع
+                    if(isLeader) socket.emit('startDiscussion');
+                }
+            }, 1000);
+        });
+
         socket.on('yourRole', (role) => { document.getElementById('my-role').innerText = role; });
 
         socket.on('discussionStarted', () => {
             switchScreen('role-screen', 'discussion-screen');
             let timeLeft = 60;
+            document.getElementById('timer').innerText = "01:00";
+            
+            clearInterval(timerInterval);
             timerInterval = setInterval(() => {
+                timeLeft--;
                 let sec = timeLeft % 60;
                 document.getElementById('timer').innerText = `00:${sec < 10 ? '0'+sec : sec}`;
-                if (--timeLeft < 0) { clearInterval(timerInterval); requestVoting(); }
+                if (timeLeft <= 0) { 
+                    clearInterval(timerInterval); 
+                    // القائد فقط يرسل إشارة انتهاء وقت النقاش للسيرفر ليقود الجميع للتصويت
+                    if(isLeader) socket.emit('startVoting'); 
+                }
             }, 1000);
         });
 
@@ -133,18 +164,18 @@
         function submitMyVote() {
             const target = document.getElementById('my-vote-select').value;
             socket.emit('submitVote', { target });
-            document.getElementById('voting-screen').innerHTML = "<h3>تم إرسال صوتك سراً.. بانتظار بقية اللاعبين ⏳</h3>";
+            document.getElementById('vote-form-area').innerHTML = "<h3 style='color:#66fcf1'>تم إرسال صوتك السرّاً.. بانتظار بقية اللاعبين ⏳</h3>";
         }
 
         socket.on('gameResult', ({ eliminated, isTie, roles }) => {
             switchScreen('voting-screen', 'result-screen');
             const box = document.getElementById('final-result-box');
             if (isTie || !eliminated) {
-                box.innerHTML = `⚖️ تعادلت الأصوات ولم يُطرد أحد هذه الجولة!`;
+                box.innerHTML = `⚖️ تعادلت الأصوات ولم يُطرد أحد!<br><span style="color:#66fcf1">عاش الجميع لليلة أخرى بنجاح.</span>`;
             } else {
                 let targetPlayer = allPlayers.find(p => p.name === eliminated);
                 let role = targetPlayer ? roles[targetPlayer.id] : "غير معروف";
-                box.innerHTML = `💀 تم طرد اللاعب: [ ${eliminated} ]<br><br>ودوره الحقيقي كان: <span style="color:#66fcf1">${role}</span>`;
+                box.innerHTML = `💀 قررت المحكمة طرد اللاعب: [ ${eliminated} ]<br><br>ودوره الحقيقي كان هو:<br><span style="color:#66fcf1; font-size:26px;">${role}</span>`;
             }
         });
 
