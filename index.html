@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>صراع الغسق - أونلاين</title>
+    <!-- مكتبة Socket.io للربط بين الهواتف -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background-color: #0b0c10; color: #c5c6c7; font-family: sans-serif; text-align: center; padding: 20px; margin: 0; }
+        .container { max-width: 600px; margin: 30px auto; background: #1f2833; padding: 30px; border-radius: 15px; border: 1px solid #45a29e; box-shadow: 0 0 20px rgba(102, 252, 241, 0.2); }
+        h1 { color: #66fcf1; text-shadow: 0 0 10px rgba(102, 252, 241, 0.5); }
+        input[type="text"] { width: 80%; padding: 12px; margin: 10px 0; border: 2px solid #45a29e; background: #0b0c10; color: #fff; border-radius: 8px; font-size: 16px; text-align: center; outline: none; }
+        .btn { background-color: #ff0055; color: white; border: none; padding: 12px 25px; font-size: 18px; font-weight: bold; cursor: pointer; border-radius: 8px; margin: 10px; transition: 0.3s; }
+        .btn:hover { background-color: #66fcf1; color: #0b0c10; box-shadow: 0 0 15px #66fcf1; }
+        .screen { display: none; }
+        .active-screen { display: block; }
+        .players-list { list-style: none; padding: 0; margin: 20px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .players-list li { background: #0b0c10; padding: 8px 15px; border-radius: 20px; border: 1px solid #66fcf1; }
+        .role-display { font-size: 28px; color: #66fcf1; font-weight: bold; margin: 30px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🐺 صراع الغسق أونلاين</h1>
+
+        <!-- شاشة تسجيل الدخول -->
+        <div id="login-screen" class="screen active-screen">
+            <h2>انضم إلى اللعبة أونلاين</h2>
+            <input type="text" id="player-name" placeholder="أدخل اسمك المستعار...">
+            <br>
+            <button class="btn" onclick="joinGame()">دخول الغرفة ➔</button>
+        </div>
+
+        <!-- شاشة غرفة الانتظار المتزامنة -->
+        <div id="lobby-screen" class="screen">
+            <h2>غرفة الانتظار الرقمية</h2>
+            <p>بانتظار بقية اللاعبين (تحتاج 4 لاعبين كحد أدنى)...</p>
+            <h3>اللاعبون المتصلون الآن في نفس اللحظة:</h3>
+            <ul id="online-players-list" class="players-list"></ul>
+            <button id="start-btn" class="btn" style="display:none;" onclick="requestStartGame()">بدء اللعبة وتوزيع الأدوار ➔</button>
+        </div>
+
+        <!-- شاشة عرض الدور السري لكل هاتف -->
+        <div id="role-screen" class="screen">
+            <h2>دورك السري ل هذه الليلة 🌌</h2>
+            <div id="my-role" class="role-display">جاري التحميل...</div>
+            <p>لا تدع أحداً ينظر إلى شاشة هاتفك!</p>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let myName = "";
+
+        function joinGame() {
+            const nameInput = document.getElementById('player-name');
+            myName = nameInput.value.trim();
+            if (myName === '') return;
+
+            // إرسال الاسم للسيرفر أونلاين
+            socket.emit('joinRoom', { name: myName });
+            switchScreen('login-screen', 'lobby-screen');
+        }
+
+        // استقبال قائمة اللاعبين المتصلين في نفس اللحظة من السيرفر تحديثها تلقائياً
+        socket.on('updatePlayers', (players) => {
+            const listUl = document.getElementById('online-players-list');
+            listUl.innerHTML = '';
+            players.forEach(p => {
+                const li = document.createElement('li');
+                li.innerText = '👤 ' + p.name;
+                listUl.appendChild(li);
+            });
+
+            // إظهار زر البدء فقط إذا كان عدد المشتركين 4 أو أكثر
+            if (players.length >= 4) {
+                document.getElementById('start-btn').style.display = 'inline-block';
+            } else {
+                document.getElementById('start-btn').style.display = 'none';
+            }
+        });
+
+        function requestStartGame() {
+            socket.emit('startGame');
+        }
+
+        // استقبال الدور السري المخصص لهذا الهاتف فقط
+        socket.on('yourRole', (role) => {
+            document.getElementById('my-role').innerText = role;
+            switchScreen('lobby-screen', 'role-screen');
+        });
+
+        function switchScreen(oldId, newId) {
+            document.getElementById(oldId).classList.remove('active-screen');
+            document.getElementById(newId).classList.add('active-screen');
+        }
+    </script>
+</body>
+</html>
