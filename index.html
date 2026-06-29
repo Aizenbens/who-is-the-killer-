@@ -3,85 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>صراع الغسق - أونلاين</title>
+    <title>صراع الغسق - نسخة عداد الأدوار</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { background-color: #0b0c10; color: #c5c6c7; font-family: sans-serif; text-align: center; padding: 20px; margin: 0; }
-        .container { max-width: 600px; margin: 30px auto; background: #1f2833; padding: 30px; border-radius: 15px; border: 1px solid #45a29e; box-shadow: 0 0 20px rgba(102, 252, 241, 0.2); }
+        body { background-color: #0b0c10; color: #c5c6c7; font-family: sans-serif; text-align: center; padding: 15px; margin: 0; }
+        .container { max-width: 600px; margin: 15px auto; background: #1f2833; padding: 25px; border-radius: 15px; border: 1px solid #45a29e; box-shadow: 0 0 20px rgba(102, 252, 241, 0.2); }
         h1 { color: #66fcf1; text-shadow: 0 0 10px rgba(102, 252, 241, 0.5); }
         input[type="text"] { width: 80%; padding: 12px; margin: 10px 0; border: 2px solid #45a29e; background: #0b0c10; color: #fff; border-radius: 8px; font-size: 16px; text-align: center; outline: none; }
         .btn { background-color: #ff0055; color: white; border: none; padding: 12px 25px; font-size: 18px; font-weight: bold; cursor: pointer; border-radius: 8px; margin: 10px; transition: 0.3s; }
         .btn:hover { background-color: #66fcf1; color: #0b0c10; box-shadow: 0 0 15px #66fcf1; }
         .screen { display: none; }
         .active-screen { display: block; }
-        .players-list { list-style: none; padding: 0; margin: 20px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .players-list { list-style: none; padding: 0; margin: 15px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
         .players-list li { background: #0b0c10; padding: 8px 15px; border-radius: 20px; border: 1px solid #66fcf1; }
-        .role-display { font-size: 28px; color: #66fcf1; font-weight: bold; margin: 30px 0; }
-        .timer-box { font-size: 48px; font-weight: bold; color: #ff0055; margin: 20px 0; }
-        .vote-select { padding: 10px; background: #0b0c10; color: white; border: 1px solid #45a29e; border-radius: 5px; font-size: 16px; width: 80%; text-align: center; }
+        .role-title { font-size: 26px; color: #66fcf1; font-weight: bold; margin: 15px 0; }
+        .action-box { background: #0b0c10; padding: 15px; border-radius: 10px; border: 2px dashed #ff0055; margin: 15px 0; }
+        
+        .chat-box { background: #0b0c10; border: 1px solid #45a29e; border-radius: 8px; height: 150px; overflow-y: auto; text-align: right; padding: 10px; margin: 15px 0; font-size: 14px; }
+        .chat-input-area { display: flex; gap: 5px; }
+        .chat-input { flex: 1; padding: 10px; background: #1f2833; color: white; border: 1px solid #45a29e; border-radius: 5px; }
+        .speaker-badge { background: #ff0055; color: white; padding: 8px; border-radius: 5px; font-size: 18px; font-weight: bold; margin: 10px 0; display: inline-block; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>🐺 صراع الغسق أونلاين</h1>
+        <h1>🐺 صراع الغسق</h1>
 
         <!-- شاشة 1 -->
         <div id="login-screen" class="screen active-screen">
-            <h2>انضم إلى اللعبة أونلاين</h2>
+            <h2>انضم للعب أونلاين</h2>
             <input type="text" id="player-name" placeholder="أدخل اسمك المستعار...">
             <br>
-            <button class="btn" onclick="joinGame()">دخول الغرفة ➔</button>
+            <button class="btn" onclick="joinGame()">دخول ➔</button>
         </div>
 
         <!-- شاشة 2 -->
         <div id="lobby-screen" class="screen">
-            <h2>غرفة الانتظار الرقمية</h2>
-            <p id="waiting-msg">بانتظار بقية اللاعبين (4 لاعبين كحد أدنى)...</p>
-            <h3>اللاعبون المتصلون:</h3>
+            <h2>غرفة الانتظار المتزامنة</h2>
+            <p id="waiting-msg">بانتظار المشرف لبدء اللعبة (4 لاعبين كحد أدنى)...</p>
             <ul id="online-players-list" class="players-list"></ul>
-            <button id="start-btn" class="btn" style="display:none;" onclick="requestStartGame()">توزيع الأدوار وبدء اللعبة ➔</button>
+            <button id="start-btn" class="btn" style="display:none;" onclick="requestStartGame()">بدء اللعبة ➔</button>
         </div>
 
         <!-- شاشة 3 -->
-        <div id="role-screen" class="screen">
-            <h2>دورك السري لهذه الليلة 🌌</h2>
-            <div id="my-role" class="role-display">جاري التحميل...</div>
-            <p style="color: #ff0055; font-weight: bold;" id="role-timer">ستبدأ المناقشة تلقائياً بعد 15 ثانية...</p>
+        <div id="night-screen" class="screen">
+            <h2 style="color: #ff0055;">💤 حل الظلام الحالك...</h2>
+            <div id="my-role-badge" class="role-title">جاري تحديد دورك...</div>
+            <div id="night-action-area" class="action-box">بانتظار تنفيذ الأدوار سراً...</div>
         </div>
 
         <!-- شاشة 4 -->
         <div id="discussion-screen" class="screen">
-            <h2>المناقشة النهارية 🗣️</h2>
-            <p>تناقشوا واكشفوا الخونة قبل انتهاء الوقت!</p>
-            <div id="timer" class="timer-box">01:00</div>
+            <h2>☀️ دور الدفاع والكلام المنفصل</h2>
+            <h3 id="night-kill-report" style="color: #ff0055;"></h3>
+            
+            <!-- لوحة إعلان المتحدث الحالي -->
+            <div id="speaker-announcement" class="speaker-badge">جاري تحديد من يتكلم...</div>
+            <div id="speaker-timer" style="font-size: 24px; color: #66fcf1; margin-bottom: 10px;">الوقت المتبقي: 60 ثانية</div>
+
+            <div class="chat-box" id="chat-messages"></div>
+            
+            <div class="chat-input-area" id="chat-input-container">
+                <input type="text" id="msg-field" class="chat-input" placeholder="انتظر دورك في الكلام..." disabled>
+                <button id="send-chat-btn" class="btn" style="margin:0; padding:10px 20px;" onclick="sendChat()" disabled>إرسال</button>
+            </div>
+            
+            <button id="leader-next-btn" class="btn" style="background-color: #00ffcc; color: black; display: none; margin-top: 15px;" onclick="skipToNextSpeaker()">تجاوز اللاعب الحالي (للمشرف فقط) ➔</button>
         </div>
 
         <!-- شاشة 5 -->
         <div id="voting-screen" class="screen">
-            <h2>محكمة القرية السحرية 🗳️</h2>
-            <p>اختر الشخص المشتبه به سراً:</p>
-            <div id="vote-form-area">
-                <select id="my-vote-select" class="vote-select"></select>
-                <br><br>
-                <button class="btn" onclick="submitMyVote()">تأكيد صوتي 🔒</button>
-            </div>
+            <h2>🗳️ محكمة القرية الحية</h2>
+            <p>انتهى وقت الكلام للجميع. اختر من تشتبه به الآن:</p>
+            <div id="voting-options-area"></div>
         </div>
 
         <!-- شاشة 6 -->
         <div id="result-screen" class="screen">
-            <h2>نتيجة المحاكمة القاتلة 💀</h2>
-            <div id="final-result-box" style="font-size: 22px; margin: 30px 0; color:#ff0055; font-weight:bold; line-height: 1.6;"></div>
-            <button class="btn" onclick="location.reload()">جولة جديدة 🔄</button>
+            <h2>🔍 حكم المحكمة النهائي</h2>
+            <div id="vote-result-box" style="font-size: 20px; color:#ff0055; margin: 20px 0; font-weight:bold;"></div>
+            <p style="color:#aaa;">جاري الانتقال لليلة التالية وتجهيز الأدوار السحرية...</p>
+        </div>
+
+        <!-- شاشة 7 -->
+        <div id="gameover-screen" class="screen">
+            <h2 style="color: #00ffcc;">🏆 انتهاء المعركة!</h2>
+            <div id="winner-box" style="font-size: 26px; margin: 30px 0; font-weight:bold;"></div>
+            <button class="btn" onclick="location.reload()">اللعب من جديد 🔄</button>
         </div>
     </div>
 
     <script>
         const socket = io();
-        let myName = "";
-        let allPlayers = [];
-        let timerInterval;
+        let myName = "", myId = "", myRole = "";
         let isLeader = false;
+        let speakerCountdown;
+        let allPlayers = [];
 
         function joinGame() {
             const nameInput = document.getElementById('player-name');
@@ -101,89 +119,152 @@
                 listUl.appendChild(li);
             });
             
-            // تحديد القائد بناءً على أول معرف لاعب متصل في القائمة المحدثة
+            // إصلاح التحقق من القائد ليعتمد على أول لاعب في القائمة بشكل صحيح
             if (players.length > 0 && players[0].name === myName) {
                 isLeader = true;
                 if(players.length >= 4) {
                     document.getElementById('start-btn').style.display = 'inline-block';
-                    document.getElementById('waiting-msg').innerText = "أنت القائد! اضغط على الزر لبدء اللعبة الآن.";
+                    document.getElementById('waiting-msg').innerText = "أنت المشرف، اضغط لبدء اللعبة عند اكتمال العدد.";
                 }
             } else {
                 isLeader = false;
                 document.getElementById('start-btn').style.display = 'none';
-                document.getElementById('waiting-msg').innerText = "بانتظار أن يبدأ القائد اللعبة...";
+                document.getElementById('waiting-msg').innerText = "بانتظار المشرف لبدء اللعبة...";
             }
         });
 
         function requestStartGame() { socket.emit('startGame'); }
 
-        socket.on('gameStarted', () => { 
-            switchScreen('lobby-screen', 'role-screen'); 
-            let rTime = 15;
-            let rInterval = setInterval(() => {
-                rTime--;
-                document.getElementById('role-timer').innerText = `ستبدأ المناقشة تلقائياً بعد ${rTime} ثانية...`;
-                if(rTime <= 0) {
-                    clearInterval(rInterval);
-                    // القائد فقط يرسل إشارة انتهاء وقت قراءة الأدوار للسيرفر ليقوم بنقل الجميع
-                    if(isLeader) socket.emit('startDiscussion');
-                }
-            }, 1000);
+        socket.on('yourRole', (data) => {
+            myRole = data.role;
+            myId = data.id;
+            document.getElementById('my-role-badge').innerText = `دورك السري: ${myRole}`;
         });
 
-        socket.on('yourRole', (role) => { document.getElementById('my-role').innerText = role; });
+        socket.on('gameStarted', () => { switchScreen('lobby-screen', 'night-screen'); });
 
-        socket.on('discussionStarted', () => {
-            switchScreen('role-screen', 'discussion-screen');
-            let timeLeft = 60;
-            document.getElementById('timer').innerText = "01:00";
+        socket.on('nightStarted', ({ alivePlayers }) => {
+            switchScreen('discussion-screen', 'night-screen');
+            switchScreen('result-screen', 'night-screen');
+            const area = document.getElementById('night-action-area');
             
-            clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                timeLeft--;
-                let sec = timeLeft % 60;
-                document.getElementById('timer').innerText = `00:${sec < 10 ? '0'+sec : sec}`;
-                if (timeLeft <= 0) { 
-                    clearInterval(timerInterval); 
-                    // القائد فقط يرسل إشارة انتهاء وقت النقاش للسيرفر ليقود الجميع للتصويت
-                    if(isLeader) socket.emit('startVoting'); 
-                }
-            }, 1000);
-        });
-
-        socket.on('votingStarted', () => {
-            clearInterval(timerInterval);
-            switchScreen('discussion-screen', 'voting-screen');
-            const select = document.getElementById('my-vote-select');
-            select.innerHTML = '<option value="skip">امتناع عن التصويت</option>';
-            allPlayers.forEach(p => {
-                if(p.name !== myName) select.innerHTML += `<option value="${p.name}">${p.name}</option>`;
-            });
-        });
-
-        function submitMyVote() {
-            const target = document.getElementById('my-vote-select').value;
-            socket.emit('submitVote', { target });
-            document.getElementById('vote-form-area').innerHTML = "<h3 style='color:#66fcf1'>تم إرسال صوتك السرّاً.. بانتظار بقية اللاعبين ⏳</h3>";
-        }
-
-        socket.on('gameResult', ({ eliminated, isTie, roles }) => {
-            switchScreen('voting-screen', 'result-screen');
-            const box = document.getElementById('final-result-box');
-            if (isTie || !eliminated) {
-                box.innerHTML = `⚖️ تعادلت الأصوات ولم يُطرد أحد!<br><span style="color:#66fcf1">عاش الجميع لليلة أخرى بنجاح.</span>`;
+            if (myRole.includes("ذئب")) {
+                area.innerHTML = `<h3>اختر ضحيتك لتصفيتها الليلة:</h3>`;
+                alivePlayers.forEach(p => {
+                    if(p.id !== myId) area.innerHTML += `<button class="btn" onclick="executeNightAction('wolf', '${p.id}')">${p.name}</button>`;
+                });
+            } else if (myRole.includes("ساحرة")) {
+                area.innerHTML = `<h3>اختر الشخص الذي تود حمايته بالجرعة سحرية:</h3>`;
+                alivePlayers.forEach(p => {
+                    area.innerHTML += `<button class="btn" onclick="executeNightAction('witch', '${p.id}')">${p.name} (حماية)</button>`;
+                });
             } else {
-                let targetPlayer = allPlayers.find(p => p.name === eliminated);
-                let role = targetPlayer ? roles[targetPlayer.id] : "غير معروف";
-                box.innerHTML = `💀 قررت المحكمة طرد اللاعب: [ ${eliminated} ]<br><br>ودوره الحقيقي كان هو:<br><span style="color:#66fcf1; font-size:26px;">${role}</span>`;
+                area.innerHTML = `<h3>أنت نائم الآن.. انتظر حتى شروق الشمس وانتهاء الأدوار السرية 💤</h3>`;
             }
         });
 
-        function switchScreen(oldId, newId) {
-            let oldS = document.getElementById(oldId);
-            let newS = document.getElementById(newId);
-            if(oldS && newS) { oldS.classList.remove('active-screen'); newS.classList.add('active-screen'); }
+        function executeNightAction(type, targetId) {
+            if(type === 'wolf') socket.emit('wolfAttack', { targetId });
+            if(type === 'witch') socket.emit('witchProtect', { targetId });
+            document.getElementById('night-action-area').innerHTML = "<h3>تم تسجيل قرارك بنجاح.. بانتظار البقية 🔒</h3>";
         }
-    </script>
-</body>
-</html>
+
+        socket.on('dayStarted', ({ killedMessage, alivePlayers }) => {
+            switchScreen('night-screen', 'discussion-screen');
+            document.getElementById('night-kill-report').innerHTML = killedMessage;
+            
+            if(isLeader) document.getElementById('leader-next-btn').style.display = 'inline-block';
+
+            const voteArea = document.getElementById('voting-options-area');
+            voteArea.innerHTML = '';
+            alivePlayers.forEach(p => {
+                if(p.name !== myName) voteArea.innerHTML += `<button class="btn" onclick="submitVote('${p.id}')">${p.name}</button>`;
+            });
+            voteArea.innerHTML += `<br><button class="btn" style="background:#aaa" onclick="submitVote('skip')">امتناع عن التصويت ⚖️</button>`;
+        });
+
+        socket.on('speakerTurn', ({ speakerName, speakerId }) => {
+            const badge = document.getElementById('speaker-announcement');
+            const input = document.getElementById('msg-field');
+            const btn = document.getElementById('send-chat-btn');
+            
+            clearInterval(speakerCountdown);        if (speakerId === myId) {
+            badge.innerText = `🎤 دورك الآن! تكلّم ودافع عن نفسك.`;
+            badge.style.backgroundColor = "#00ffcc";
+            badge.style.color = "black";
+            input.disabled = false;
+            btn.disabled = false;
+            input.placeholder = "اكتب دفاعك أو اتهامك هنا، الميكروفون معك...";
+        } else {
+            badge.innerText = `🗣️ المتحدث الحالي: [ ${speakerName} ]`;
+            badge.style.backgroundColor = "#ff0055";
+            badge.style.color = "white";
+            input.disabled = true;
+            btn.disabled = true;
+            input.placeholder = "استمع جيداً وكذّبه بذكاء.. الشات مقفل عنك الآن.";
+        }
+
+        let timeLeft = 60;
+        document.getElementById('speaker-timer').innerText = `الوقت المتبقي: ${timeLeft} ثانية`;
+        
+        clearInterval(speakerCountdown);
+        speakerCountdown = setInterval(() => {
+            timeLeft--;
+            document.getElementById('speaker-timer').innerText = `الوقت المتبقي: ${timeLeft} ثانية`;
+            if(timeLeft <= 0) {
+                clearInterval(speakerCountdown);
+            }
+        }, 1000);
+    });
+
+    function skipToNextSpeaker() {
+        socket.emit('nextSpeakerRequest');
+    }
+
+    function sendChat() {
+        const input = document.getElementById('msg-field');
+        if(input.value.trim() !== '') {
+            socket.emit('sendMessage', input.value.trim());
+            input.value = '';
+        }
+    }
+
+    socket.on('receiveMessage', (data) => {
+        const box = document.getElementById('chat-messages');
+        box.innerHTML += `<div><b>${data.name}:</b> ${data.text}</div>`;
+        box.scrollTop = box.scrollHeight;
+    });
+
+    socket.on('votingStarted', () => { 
+        clearInterval(speakerCountdown);
+        switchScreen('discussion-screen', 'voting-screen'); 
+    });
+
+    function submitVote(targetId) {
+        socket.emit('submitVote', { targetId });
+        document.getElementById('voting-options-area').innerHTML = "<h3>تم تسجيل صوتك السري بنجاح.. بانتظار فرز المحكمة ⏳</h3>";
+    }
+
+    socket.on('votingResult', ({ resultMsg }) => {
+        switchScreen('voting-screen', 'result-screen');
+        document.getElementById('vote-result-box').innerHTML = resultMsg;
+    });
+
+    socket.on('gameOver', ({ winner }) => {
+        clearInterval(speakerCountdown);
+        switchScreen('discussion-screen', 'gameover-screen');
+        switchScreen('voting-screen', 'gameover-screen');
+        switchScreen('result-screen', 'gameover-screen');
+        document.getElementById('winner-box').innerText = winner;
+    });
+
+    function switchScreen(oldId, newId) {
+        let oldS = document.getElementById(oldId);
+        let newS = document.getElementById(newId);
+        if(oldS && newS) { 
+            oldS.classList.remove('active-screen'); 
+            newS.classList.add('active-screen'); 
+        }
+    }
+
+
